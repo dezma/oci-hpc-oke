@@ -1,10 +1,9 @@
 module "oke" {
   source  = "oracle-terraform-modules/oke/oci"
-  version = "5.1.1"
+  version = "5.1.5"
 
   # Provider
   providers           = { oci.home = oci.home }
-  config_file_profile = var.config_file_profile
   home_region         = var.home_region
   region              = var.region
   tenancy_id          = var.tenancy_id
@@ -14,45 +13,58 @@ module "oke" {
   
   kubernetes_version = var.kubernetes_version
   cluster_type = var.cluster_type
-  bastion_allowed_cidrs = ["0.0.0.0/0"]
+  
+  
   allow_worker_ssh_access     = true
   control_plane_allowed_cidrs = ["0.0.0.0/0"]
 
-  control_plane_is_public = true
+  control_plane_is_public = true 
   
-  # Resource creation
-  assign_dns           = true
-  create_vcn           = true
-  create_bastion       = true
-  create_cluster       = true
-  create_operator      = true
-  create_iam_resources = true
-  use_defined_tags     = false
-
-  worker_pools = {
-    operational = {
-      description = "Operational pool", enabled = true,
-      disable_default_cloud_init=true,
-      mode        = "node-pool",
-      boot_volume_size = 150,
-      shape = "VM.Standard.E4.Flex",
-      ocpus = 16,
-      memory = 64,
-      size = 3,
-      cloud_init = [{ content = "./cloud-init/ol8.sh" }],
+ 
+  vcn_name      = "hpc"
+  
+  #subnets
+  subnets = {
+    bastion  = { newbits = 13, netnum = 0, dns_label = "bastion" }
+    operator = { newbits = 13, netnum = 1, dns_label = "operator" }
+    cp       = { newbits = 13, netnum = 2, dns_label = "cp" }
+    workers  = { newbits = 2, netnum = 1, dns_label = "workers" }
   }
 
-   gpu = {
-     description = "GPU pool", enabled = true,
+  assign_dns           = true
+  
+  
+  # bastion host
+  create_bastion        = true
+  bastion_allowed_cidrs = ["0.0.0.0/0"]
+  bastion_upgrade       = false
+  
+  
+  #operator host
+  create_operator            = true
+  operator_upgrade           = false
+  create_iam_resources       = true
+  create_iam_operator_policy = "always"
+  operator_install_k9s       = true
+  
+  
+  create_cluster       = true 
+  use_defined_tags     = false
+
+
+  #node pools
+  worker_pools = {
+
+   hpc = {
+     description = "HPC pool", enabled = true,
      disable_default_cloud_init=true,
      mode        = "cluster-network",
      size = 2,
-     shape = var.gpu_shape
+     shape = var.hpc_shape
      boot_volume_size = 250,
      placement_ads = [1],
      image_type = "custom",
-     image_id = var.gpu_image,
-     node_labels = { "oci.oraclecloud.com/disable-gpu-device-plugin" : "true" },
+     image_id = var.hpc_image,
      cloud_init = [{ content = "./cloud-init/ol8.sh" }],
      agent_config = {
         are_all_plugins_disabled = false,
@@ -63,7 +75,6 @@ module "oke" {
           "Compute HPC RDMA Auto-Configuration" = "ENABLED",
           "Compute Instance Monitoring"         = "ENABLED",
           "Compute Instance Run Command"        = "ENABLED",
-          "Compute RDMA GPU Monitoring"         = "DISABLED",
           "Custom Logs Monitoring"              = "ENABLED",
           "Management Agent"                    = "ENABLED",
           "Oracle Autonomous Linux"             = "DISABLED",

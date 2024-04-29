@@ -1,4 +1,3 @@
-config_file_profile  = ""
 home_region          = ""
 region               = ""
 tenancy_id           = ""
