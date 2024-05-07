@@ -80,10 +80,10 @@ module "oke" {
      description = "HPC pool", enabled = true,
      disable_default_cloud_init=true,
      mode        = "cluster-network",
-     size = 2,
+     size = 3,
      shape = var.hpc_shape
      boot_volume_size = 250,
-     placement_ads = [2],
+     placement_ads = [1],
      image_type = "custom",
      image_id = var.hpc_image,
      cloud_init = [{ content = "./cloud-init/ol8.sh" }],
