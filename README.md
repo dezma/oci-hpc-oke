@@ -104,17 +104,15 @@ kubectl get nodes
 
 3. Copy the the hpc-fss-pv.yaml located in the OKE FSS PV folder and edit the following line:
 
-```
-volumeHandle to <FileSystemOCID>:<MountTargetIP>:<path>
+<em>volumeHandle</em> to <em><FileSystemOCID>:<MountTargetIP>:<path></em>
 where:
 <ul>
- <li><FileSystemOCID> is the OCID of the file system defined in the File Storage service.</li>
- <li><MountTargetIP> is the IP address assigned to the mount target.</li>
- <li><path> is the mount path to the file system relative to the mount target IP address, starting with a slash.</li>
+ <li><em><FileSystemOCID></em> is the OCID of the file system defined in the File Storage service.</li>
+ <li><em><MountTargetIP></em> is the IP address assigned to the mount target.</li>
+ <li><em><path></em> is the mount path to the file system relative to the mount target IP address, starting with a slash.</li>
 
 </ul>
 
-```
 4. Create a persistent volume
 
 ```
@@ -124,7 +122,7 @@ where:
 ```
 
 5. Copy and Edit the hpc-fss-pvc.yaml and edit the line:
-volumeName: hpc-fss-pv to have the correct name of the Persistent volume 
+<em>volumeName: hpc-fss-pv</em> to have the correct name of the Persistent volume 
 
 ```
 volumeName: <name of Persistent volume>
