@@ -109,7 +109,9 @@ where:
 4. Create a persistent volume
 
 ```
-kubectl create -f hpc-fss-pv.yaml
+ kubectl create -f hpc-fss-pv.yaml
+ kubectl get pv
+
 ```
 
 5. Copy and Edit the hpc-fss-pvc.yaml and edit the line:
@@ -122,8 +124,8 @@ volumeName: <name of Persistent volume>
 6. Create the peristent volume claim and make sure its bound:
 
 ```
-$kubectl create -f hpc-fss-pv.yaml
+ kubectl create -f hpc-fss-pv.yaml
 
-$kubectl get pvc
+ kubectl get pvc
 ```
 
