@@ -32,7 +32,7 @@ compartment_id = "ocid1.compartment.oc1.."
 ```
 # ssh
 ssh_private_key_path = "~/.ssh/id_rsa"
-ssh_public_key_path  = "~/.ssh/id_rsa.pub"
+ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 ```
 
 
@@ -72,8 +72,12 @@ operator_shape = {
 7. Run terraform to create your clusters:
 
 ```
+terraform init
 
-terraform apply --auto-approve
+terraform plan -var-file="var.tfvars"
+
+terraform apply -var-file="var.tfvars"
+
 ```
 
 
