@@ -18,7 +18,7 @@ module "oke" {
   allow_worker_ssh_access     = true
   control_plane_allowed_cidrs = ["0.0.0.0/0"]
 
-  control_plane_is_public = true 
+  control_plane_is_public = false 
   
  
   vcn_name      = "hpc"
