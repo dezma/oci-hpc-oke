@@ -8,7 +8,7 @@ module "oke" {
   region              = var.region
   tenancy_id          = var.tenancy_id
   compartment_id      = var.compartment_id
-  ssh_public_key      = var.ssh_public_key_path
+  ssh_public_key      = var.ssh_public_key
   ssh_private_key_path = var.ssh_private_key_path
   
   kubernetes_version = var.kubernetes_version
@@ -60,7 +60,6 @@ module "oke" {
   operator_image_os              = "Oracle Linux" 
   operator_image_os_version      = "8"            
   operator_image_type            = "platform"
-  operator_install_k9s       = true
   operator_shape = {
   shape            = "VM.Standard.E4.Flex",
   ocpus            = 1,

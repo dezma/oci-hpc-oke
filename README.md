@@ -59,7 +59,7 @@ bastion_shape = {
   memory           = 4,
   boot_volume_size = 50
   }
-  
+
 operator_shape = {
   shape            = "VM.Standard.E4.Flex",
   ocpus            = 1,
@@ -72,10 +72,11 @@ operator_shape = {
 7. Run terraform to create your clusters:
 
 ```
+
 terraform apply --auto-approve
 ```
 
-8. Once the Dynamic Routing Gateways (DRGs) and Remote Peering Connections (RPCs) have been created, use the OCI console to establish a connection between them.
+
 
 ## Mount OCI FSS as Persistent Volume
 

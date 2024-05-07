@@ -4,8 +4,6 @@ region    =  ""
 
 tenancy_id = "ocid1.tenancy.oc1.."
 
-user_id = "ocid1.user.oc1.."
-
 compartment_id = "ocid1.compartment.oc1.."
 
 # ssh
