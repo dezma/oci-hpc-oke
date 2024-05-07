@@ -6,7 +6,7 @@
 2. The OKE clusters will use private control planes.
 
 
-![Multi-primary on multiple networks](docs/assets/multi-primary%20multi-networks.png)
+![OKE RDMA](Architecture/oci-hpc-arc.png)
 
 
 ## Create the OKE Clusters
