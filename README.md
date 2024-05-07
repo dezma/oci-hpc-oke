@@ -40,12 +40,12 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 <strong> N/B</strong> cluster type be "enhanced" and network type to "flannel" for RDMA to work.</br>
 Check OCI documentation for supported HPC shapes -> https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized
 ```
-variable hpc_image { default = "" }
-variable hpc_shape { default = "" }
-variable kubernetes_version { default = "v1.29.1" }
-variable cluster_type { default = "enhanced" }
-variable cluster_name { default = "oke-rdma-cluster" }
-variable cni_type {default = "flannel"}
+ variable hpc_image { default = "" }
+ variable hpc_shape { default = "" }
+ variable kubernetes_version { default = "v1.29.1" }
+ variable cluster_type { default = "enhanced" }
+ variable cluster_name { default = "oke-rdma-cluster" }
+ variable cni_type {default = "flannel"}
 
 
 ```
