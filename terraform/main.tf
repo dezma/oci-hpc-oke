@@ -11,14 +11,7 @@ module "oke" {
   ssh_public_key      = var.ssh_public_key
   ssh_private_key_path = var.ssh_private_key_path
   
-  kubernetes_version = var.kubernetes_version
-  cluster_type = var.cluster_type
-  
-  
-  allow_worker_ssh_access     = true
-  control_plane_allowed_cidrs = ["0.0.0.0/0"]
-
-  control_plane_is_public = false 
+   
   
  
   vcn_name      = "hpc"
@@ -69,6 +62,10 @@ module "oke" {
   
   
   create_cluster       = true 
+  kubernetes_version = var.kubernetes_version
+  cluster_type = var.cluster_type
+  
+  allow_worker_ssh_access     = true 
   use_defined_tags     = false
 
 
