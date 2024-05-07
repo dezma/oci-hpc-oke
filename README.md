@@ -11,7 +11,7 @@
 
 ## Create the OKE Clusters
 
-1. Copy the terraform.tfvars.example to terraform.tfvars and provide the necessary values as detailed in steps 2-6.
+1. Copy the terraform.tfvars.example to terraform.tfvars and provide the necessary values as detailed in steps 2-7.
 
 2. Configure the provider parameters:
 
