@@ -39,14 +39,14 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 5. Configure variable.ft parameters.<br>
 <strong> N/B</strong>:
 <ul>
-
-<li>cluster type be "enhanced" and network type to "flannel" for RDMA to work.</li>
+<li>Cluster type must set be "enhanced" and network type to "flannel" for RDMA to work.</li>
 <li>Check OCI documentation for supported HPC shapes [here](https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized).</li>
+<li>The HPC pool requires you to use an image provided by the Oracle HPC team, you can find the import link [here](https://objectstorage.us-ashburn-1.oraclecloud.com/p/f6mKO0d_OG7gL4EyE5rvOWObL6LBgQ1XXtpM2H67SYmFHQ-tBwxyg7Wmii94VYc8/n/hpc_limited_availability/b/images/o/OracleLinux-8-OCA-RHCK-OFED-5.8-3.0.7.0-GPU-535-OKE-2024.02.12-0). This image includes the OFED drivers and necessary packages configured for RDMA. Import this image to Object storage and create a custom image from it.  </li>
 
 </ul>
 
 ```
- variable hpc_image { default = "" }
+ variable hpc_image { default = "" } #ocid of the custom image
  variable hpc_shape { default = "" }
  variable kubernetes_version { default = "v1.29.1" }
  variable cluster_type { default = "enhanced" }
