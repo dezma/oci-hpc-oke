@@ -83,7 +83,7 @@ module "oke" {
      size = 2,
      shape = var.hpc_shape
      boot_volume_size = 250,
-     placement_ads = [1],
+     placement_ads = [2],
      image_type = "custom",
      image_id = var.hpc_image,
      cloud_init = [{ content = "./cloud-init/ol8.sh" }],
