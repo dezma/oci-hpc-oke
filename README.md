@@ -38,7 +38,7 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 
 5. Configure variable.ft parameters.<br>
 <strong> N/B</strong> cluster type be "enhanced" and network type to "flannel" for RDMA to work.</br>
-Check OCI documentation for supported HPC shapes -> https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized
+Check OCI documentation for supported HPC shapes [here] (https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized)
 ```
  variable hpc_image { default = "" }
  variable hpc_shape { default = "" }
