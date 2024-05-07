@@ -37,8 +37,13 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 
 
 5. Configure variable.ft parameters.<br>
-<strong> N/B</strong> cluster type be "enhanced" and network type to "flannel" for RDMA to work.</br>
-Check OCI documentation for supported HPC shapes [here](https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized).
+<strong> N/B</strong>:
+<ul>
+
+</li>cluster type be "enhanced" and network type to "flannel" for RDMA to work.</li>
+</li>Check OCI documentation for supported HPC shapes [here](https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized).</li>
+
+<ul>
 ```
  variable hpc_image { default = "" }
  variable hpc_shape { default = "" }
@@ -101,9 +106,12 @@ kubectl get nodes
 ```
 volumeHandle to <FileSystemOCID>:<MountTargetIP>:<path>
 where:
-•	<FileSystemOCID> is the OCID of the file system defined in the File Storage service.
-•	<MountTargetIP> is the IP address assigned to the mount target.
-•	<path> is the mount path to the file system relative to the mount target IP address, starting with a slash.
+<ul>
+ <li><FileSystemOCID> is the OCID of the file system defined in the File Storage service.</li>
+ <li><MountTargetIP> is the IP address assigned to the mount target.</li>
+ <li><path> is the mount path to the file system relative to the mount target IP address, starting with a slash.</li>
+
+</ul>
 
 ```
 4. Create a persistent volume
