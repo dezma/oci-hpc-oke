@@ -1,0 +1,13 @@
+home_region = "" # https://docs.oracle.com/en-us/iaas/Content/General/Concepts/regions.htm
+
+region    =  ""
+
+tenancy_id = "ocid1.tenancy.oc1.."
+
+user_id = "ocid1.user.oc1.."
+
+compartment_id = "ocid1.compartment.oc1.."
+
+# ssh
+ssh_private_key_path = "~/.ssh/id_rsa"
+ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2EAAA...."
