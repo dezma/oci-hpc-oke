@@ -50,18 +50,23 @@ variable cni_type {default = "flannel"}
 
 ```
 
-6. Configure your node pools:
+6. Configure your bastion and operator shapes on main.tf file:
 
 ```
-nodepools = {
-  np1 = {
-    shape            = "VM.Standard.E4.Flex",
-    ocpus            = 2,
-    memory           = 64,
-    size             = 2,
-    boot_volume_size = 150,
+bastion_shape = {
+  shape            = "VM.Standard.E4.Flex",
+  ocpus            = 1,
+  memory           = 4,
+  boot_volume_size = 50
   }
-}
+  
+operator_shape = {
+  shape            = "VM.Standard.E4.Flex",
+  ocpus            = 1,
+  memory           = 4,
+  boot_volume_size = 50
+  }
+
 ```
 
 7. Run terraform to create your clusters:
