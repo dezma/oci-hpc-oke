@@ -40,8 +40,8 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 <strong> N/B</strong>:
 <ul>
 
-</li>cluster type be "enhanced" and network type to "flannel" for RDMA to work.</li>
-</li>Check OCI documentation for supported HPC shapes [here](https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized).</li>
+<li>cluster type be "enhanced" and network type to "flannel" for RDMA to work.</li>
+<li>Check OCI documentation for supported HPC shapes [here](https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized).</li>
 
 </ul>
 
