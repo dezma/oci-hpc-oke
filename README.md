@@ -104,7 +104,7 @@ kubectl get nodes
 
 3. Copy the the hpc-fss-pv.yaml located in the OKE FSS PV folder and edit the following line:
 
-<b>volumeHandle</b> : </b>FileSystemOCID>:MountTargetIP>:path</b>
+<em>volumeHandle : FileSystemOCID:MountTargetIP:path</em></br>
 where:
 <ul>
  <li><b>FileSystemOCID</b> is the OCID of the file system defined in the File Storage service.</li>
