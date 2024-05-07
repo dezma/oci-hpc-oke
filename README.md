@@ -36,14 +36,18 @@ ssh_public_key_path  = "~/.ssh/id_rsa.pub"
 ```
 
 
-5. Configure additional parameters if necessary:
-
+5. Configure variable.ft parameters
+N/B cluster type be "enhanced" and network type to "flannel" for RDMA to work.
+Check OCI documentation for supported HPC shapes -> https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized
 ```
-kubernetes_version = "v1.28.2"
+variable hpc_image { default = "" }
+variable hpc_shape { default = "" }
+variable kubernetes_version { default = "v1.29.1" }
+variable cluster_type { default = "enhanced" }
+variable cluster_name { default = "oke-rdma-cluster" }
+variable cni_type {default = "flannel"}
 
-cluster_type = "basic"
 
-oke_control_plane = "private"
 ```
 
 6. Configure your node pools:
