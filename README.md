@@ -136,3 +136,11 @@ volumeName: <name of Persistent volume>
  kubectl get pvc
 ```
 
+7. #<b>Optional</b> </br>
+
+Clean up all resources if need be
+
+```
+ terraform destroy -var-file="terraform.tfvars"
+```
+
