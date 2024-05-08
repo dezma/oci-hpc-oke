@@ -93,7 +93,7 @@ terraform apply -var-file="terraform.tfvars"
 1. The template will deploy a bastion instance and an operator instance. The operator instance will have access to the OKE cluster. You can connect to the operator instance via SSH with
 
 ```
-ssh_to_operator = "ssh -o ProxyCommand='ssh -W %h:%p -i <path-to-private-key> opc@<bastion_ip>' -i <path-to-private-key> opc@<operator_ip>"
+ssh -o ProxyCommand='ssh -W %h:%p -i <path-to-private-key> opc@<bastion_public_ip>' -i <path-to-private-key> opc@<operator_ip>
 ```
 
 2. Verify you can see all nodes in the cluster:
@@ -131,7 +131,7 @@ volumeName: <name of Persistent volume>
 6. Create the peristent volume claim and make sure its bound:
 
 ```
- kubectl create -f hpc-fss-pv.yaml
+ kubectl create -f hpc-fss-pvc.yaml
 
  kubectl get pvc
 ```
