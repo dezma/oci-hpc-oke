@@ -121,7 +121,7 @@ where:
 
 ```
 
-5. Copy and Edit the hpc-fss-pvc.yaml and edit the line:
+5. Copy and Edit the hpc-fss-pvc.yaml from OKE FSS PV folder and edit the line:
 <em>volumeName: hpc-fss-pv</em> to have the correct name of the Persistent volume 
 
 ```
