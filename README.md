@@ -33,6 +33,12 @@ compartment_id = "ocid1.compartment.oc1.."
 ```
 
 3. Configure an ssh key pair:
+```
+
+ssh-keygen -b 2048 -t rsa -f <<sshkeyname>>
+
+```
+Add the keys to the terraform.tfvars
 
 ```
 # ssh
