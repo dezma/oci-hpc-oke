@@ -13,6 +13,11 @@
 
 1. Copy the terraform.tfvars.example to terraform.tfvars and provide the necessary values as detailed in steps 2-7.
 
+```
+cp terraform.tfvars.example terraform.tfvars
+
+```
+
 2. Configure the provider parameters:
 
 ```
@@ -41,7 +46,8 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 <ul>
 <li>Cluster type must set be "enhanced" and network type to "flannel" for RDMA to work.</li>
 <li>Check OCI documentation for supported HPC shapes <a href="https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized">here</a> </li>
-<li>The HPC pool requires you to use an image provided by the Oracle HPC team, you can find the import <a href="https://objectstorage.us-ashburn-1.oraclecloud.com/p/f6mKO0d_OG7gL4EyE5rvOWObL6LBgQ1XXtpM2H67SYmFHQ-tBwxyg7Wmii94VYc8/n/hpc_limited_availability/b/images/o/OracleLinux-8-OCA-RHCK-OFED-5.8-3.0.7.0-GPU-535-OKE-2024.02.12-0">Link</a>. This image includes the OFED drivers and necessary packages configured for RDMA. Import this image to Object storage and create a custom image from it.  </li>
+<li>The HPC pool requires you to use an image provided by the Oracle HPC team, you can find the import <a href="https://objectstorage.us-ashburn-1.oraclecloud.com/p/f6mKO0d_OG7gL4EyE5rvOWObL6LBgQ1XXtpM2H67SYmFHQ-tBwxyg7Wmii94VYc8/n/hpc_limited_availability/b/images/o/OracleLinux-8-OCA-RHCK-OFED-5.8-3.0.7.0-GPU-535-OKE-2024.02.12-0">Link</a>. This image includes the OFED drivers and necessary packages configured for RDMA. Import this image to Object storage and create a custom image from it.  </li> Check <a href ="https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/importingcustomimagelinux.htm#Importing_Custom_Linux_Images">link</a> on how to import custom images on OCI
+
 
 </ul>
 
