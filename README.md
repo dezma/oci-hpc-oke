@@ -38,7 +38,7 @@ compartment_id = "ocid1.compartment.oc1.."
 ssh-keygen -b 2048 -t rsa -f <<sshkeyname>>
 
 ```
-Add the keys to the terraform.tfvars
+Add the keys to the terraform.tfvars file
 
 ```
 # ssh
