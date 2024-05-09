@@ -14,6 +14,7 @@
 1. Copy the terraform.tfvars.example to terraform.tfvars and provide the necessary values as detailed in steps 2-7.
 
 ```
+
 cp terraform.tfvars.example terraform.tfvars
 
 ```
@@ -21,6 +22,7 @@ cp terraform.tfvars.example terraform.tfvars
 2. Configure the provider parameters:
 
 ```
+
 # provider
 
 home_region = "eu-frankfurt-1"
@@ -30,6 +32,8 @@ region = "eu-frankfurt"
 tenancy_id = "ocid1.tenancy.oc1.."
 
 compartment_id = "ocid1.compartment.oc1.."
+
+
 ```
 
 3. Configure an ssh key pair:
@@ -41,9 +45,11 @@ ssh-keygen -b 2048 -t rsa -f <<sshkeyname>>
 Add the keys to the terraform.tfvars file
 
 ```
+
 # ssh
 ssh_private_key_path = "~/.ssh/id_rsa"
 ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
+
 ```
 
 
@@ -58,6 +64,7 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
 </ul>
 
 ```
+
  variable hpc_image { default = "" } #ocid of the custom image
  variable hpc_shape { default = "" }
  variable kubernetes_version { default = "v1.29.1" }
@@ -65,12 +72,12 @@ ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
  variable cluster_name { default = "oke-rdma-cluster" }
  variable cni_type {default = "flannel"}
 
-
 ```
 
 6. Configure your bastion and operator shapes on main.tf file:
 
 ```
+
 bastion_shape = {
   shape            = "VM.Standard.E4.Flex",
   ocpus            = 1,
@@ -90,6 +97,7 @@ operator_shape = {
 7. Run terraform to create your clusters:
 
 ```
+
 terraform init
 
 terraform plan -var-file="terraform.tfvars"
@@ -105,12 +113,14 @@ terraform apply -var-file="terraform.tfvars"
 1. The template will deploy a bastion instance and an operator instance. The operator instance will have access to the OKE cluster. You can connect to the operator instance via SSH with
 
 ```
+
 ssh -o ProxyCommand='ssh -W %h:%p -i <path-to-private-key> opc@<bastion_public_ip>' -i <path-to-private-key> opc@<operator_ip>
 ```
 
 2. Verify you can see all nodes in the cluster:
 
 ```
+
 kubectl get nodes
 ```
 
@@ -128,6 +138,7 @@ where:
 4. Create a persistent volume
 
 ```
+
  kubectl create -f hpc-fss-pv.yaml
  kubectl get pv
 
@@ -137,12 +148,14 @@ where:
 <em>volumeName: hpc-fss-pv</em> to have the correct name of the Persistent volume 
 
 ```
+
 volumeName: <name of Persistent volume>
 ```
 
 6. Create the peristent volume claim and make sure its bound:
 
 ```
+
  kubectl create -f hpc-fss-pvc.yaml
 
  kubectl get pvc
@@ -153,6 +166,7 @@ volumeName: <name of Persistent volume>
 Clean up all resources if need be
 
 ```
+
  terraform destroy -var-file="terraform.tfvars"
 ```
 
