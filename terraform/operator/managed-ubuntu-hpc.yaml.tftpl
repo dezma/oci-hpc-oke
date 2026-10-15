@@ -1,0 +1,23 @@
+#cloud-config
+# Ubuntu HPC custom image -> OKE managed-node bootstrap.
+# The image is expected to already contain the compatible RDMA/OFED stack and Oracle Cloud Agent.
+
+apt:
+  sources:
+    oke-node:
+      source: 'deb [trusted=yes] ${oke_repo_url}'
+
+packages:
+  - ${oke_node_package}
+
+write_files:
+  - path: /etc/oke-rdma-image-marker
+    permissions: '0644'
+    content: |
+      Managed Ubuntu HPC image bootstrapped for OKE.
+      OKE package: ${oke_node_package}
+
+runcmd:
+  - [ bash, -lc, "set -euxo pipefail; systemctl enable --now oracle-cloud-agent || true" ]
+  - [ bash, -lc, "set -euxo pipefail; command -v ibv_devinfo >/dev/null 2>&1 && ibv_devinfo -l || true" ]
+  - [ bash, -lc, "set -euxo pipefail; oke bootstrap" ]

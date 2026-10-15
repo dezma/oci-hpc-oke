@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OKE RDMA Control Center</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">RD</span>
+        <div><strong>OKE RDMA</strong><small>Control Center</small></div>
+      </div>
+      <nav>
+        <button class="nav active" data-page="overview">Overview</button>
+        <button class="nav" data-page="nodes">Managed nodes</button>
+        <button class="nav" data-page="network">SR-IOV &amp; VFs</button>
+        <button class="nav" data-page="workloads">RDMA workloads</button>
+        <button class="nav" data-page="jobs">Activity</button>
+        <button class="nav" data-page="security">Security &amp; access</button>
+      </nav>
+      <div class="sidebar-note">Private operator UI<br>Accessed through OCI Bastion</div>
+    </aside>
+
+    <main id="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">OCI Kubernetes Engine</p>
+          <h1 id="page-title">RDMA environment</h1>
+        </div>
+        <div class="status-pill" id="mode-pill">Connecting…</div>
+      </header>
+
+      <section id="login" class="login card">
+        <h2>Sign in to this operator workspace</h2>
+        <p>The deployment token is kept in browser memory only. Retrieve it on the private operator with <code>sudo cat /etc/oke-rdma-control/admin.token</code>.</p>
+        <label>Workspace token<input id="token" type="password" autocomplete="off"></label>
+        <button id="login-button" class="primary">Continue</button>
+        <p class="error" id="login-error" role="alert"></p>
+      </section>
+
+      <div id="app" hidden>
+        <section class="page active" data-page-panel="overview">
+          <div class="hero">
+            <div>
+              <p class="eyebrow">Current environment</p>
+              <h2 id="env-name">Loading…</h2>
+              <p>Resource Manager creates the platform. This Control Center queries the live nodes, configures SR-IOV safely, and validates the RDMA data path.</p>
+            </div>
+            <button class="secondary" id="refresh">Refresh</button>
+          </div>
+          <div class="metrics" id="metrics"></div>
+          <div class="grid two">
+            <article class="card">
+              <div class="card-head"><h3>Readiness</h3><button class="link-button" id="run-preflight">Run preflight</button></div>
+              <div id="preflight" class="empty">Run preflight to verify cluster, add-ons, Oracle Cloud Agent plugins, hardware consistency and VF prerequisites.</div>
+            </article>
+            <article class="card" id="platform-card">
+              <h3>Managed-node bootstrap</h3>
+              <div class="empty">Loading derived Ubuntu OKE details…</div>
+            </article>
+          </div>
+          <article class="card journey-card">
+            <h3>Guided path</h3>
+            <ol class="journey">
+              <li><span>1</span><div><strong>Infrastructure</strong><small>Resource Manager: Enhanced OKE + Compute Cluster + managed CPU RDMA nodes</small></div></li>
+              <li><span>2</span><div><strong>Query managed nodes</strong><small>Kubernetes readiness, OCI instance lifecycle, Cloud Agent RDMA plugins and SR-IOV inventory</small></div></li>
+              <li><span>3</span><div><strong>Configure SR-IOV VFs</strong><small>Blocked when PF/MTU state is inconsistent across workers</small></div></li>
+              <li><span>4</span><div><strong>Create VF network</strong><small>NVIDIA IPAM + SriovNetwork after VF reconciliation</small></div></li>
+              <li><span>5</span><div><strong>Validate RDMA</strong><small>Cross-node, VF-backed, non-host-network test pods</small></div></li>
+            </ol>
+          </article>
+        </section>
+
+        <section class="page" data-page-panel="nodes">
+          <div class="section-intro">
+            <p class="eyebrow">Read-only node diagnostics</p>
+            <h2>Query managed RDMA nodes directly</h2>
+            <p>The Control Center combines Kubernetes node state, <code>SriovNetworkNodeState</code>, OCI compute metadata and Oracle Cloud Agent plugin status. It does not SSH to workers or execute arbitrary host commands.</p>
+          </div>
+          <article class="card setup-card">
+            <div class="card-head">
+              <div><h3>Node health</h3><p class="muted">Use this before configuring VFs and after any managed-node replacement.</p></div>
+              <div class="button-row"><button class="secondary" id="download-node-report" disabled>Download JSON</button><button class="primary" id="refresh-nodes">Query nodes</button></div>
+            </div>
+            <div id="node-diagnostics" class="empty">Select Query nodes to read live Kubernetes and OCI status.</div>
+          </article>
+        </section>
+
+        <section class="page" data-page-panel="network">
+          <div class="section-intro">
+            <p class="eyebrow">Live RDMA configuration</p>
+            <h2>Discover first, then configure SR-IOV</h2>
+            <p>The quickstart will not recommend a PF when workers disagree on MTU, when the common MTU is below 4000, or when link-state data indicates a disabled interface.</p>
+          </div>
+
+          <article class="card setup-card">
+            <div class="card-head">
+              <div><h3>1. Discover RDMA hardware</h3><p class="muted">Reads <code>SriovNetworkNodeState.status.interfaces</code> from every selected RDMA worker.</p></div>
+              <button class="secondary" id="discover-hardware">Discover hardware</button>
+            </div>
+            <div id="discovery" class="empty">Run discovery to see SR-IOV-capable PFs and cross-node consistency.</div>
+          </article>
+
+          <article class="card setup-card">
+            <h3>2. Save RDMA settings</h3>
+            <p class="muted">Saving does not change nodes. The backend revalidates PF, MTU and VF capacity against live discovery before it stores the configuration.</p>
+            <form id="rdma-config-form" class="form-grid">
+              <label>RDMA physical function
+                <select id="rdma-pf" required><option value="">Discover healthy hardware first</option></select>
+                <small>Only eligible common PFs are selectable. Inconsistent or standard-MTU interfaces remain visible in discovery for diagnosis.</small>
+              </label>
+              <label>MTU
+                <input id="rdma-mtu" type="number" min="4000" max="9700" required>
+                <small>Must exactly match the consistent MTU reported by all workers for the selected PF.</small>
+              </label>
+              <label>VFs per node
+                <input id="rdma-vfs" type="number" min="1" max="16" required>
+                <small>Checked against the live minimum total VF capability.</small>
+              </label>
+              <label>Kubernetes resource name
+                <div class="input-prefix"><span>nvidia.com/</span><input id="rdma-resource" pattern="[a-z0-9_]+" required></div>
+                <small>Stable resource requested by RDMA workload pods.</small>
+              </label>
+              <label>VF IP pool
+                <input id="rdma-pool" type="text" required>
+                <small>NVIDIA IPAM IPv4 pool. Review fabric suitability and overlap before use.</small>
+              </label>
+              <label>RDMA validation image digest
+                <input id="rdma-image" type="text" placeholder="fra.ocir.io/ns/rdma-tools@sha256:…">
+                <small>Optional until validation. Live runs require an immutable digest.</small>
+              </label>
+              <div class="form-actions full"><button class="primary" type="submit" id="save-rdma-config">Save RDMA settings</button><span id="config-lock-note" class="muted"></span></div>
+            </form>
+          </article>
+
+          <div class="grid two">
+            <article class="card" id="vf-card"></article>
+            <article class="card" id="net-card"></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="workloads">
+          <div class="section-intro">
+            <p class="eyebrow">Workload verification</p>
+            <h2>Cross-node RDMA validation</h2>
+            <p>The validation profile checks placement, <code>net1</code>, route/neighbor state, RoCE v2 GID discovery, then runs finite <code>ib_write_bw</code>. Infrastructure success is never presented as RDMA success.</p>
+          </div>
+          <article class="card workload-card">
+            <div>
+              <h3>RDMA bandwidth validation</h3>
+              <p>One <code>nvidia.com/&lt;resource&gt;</code> VF per pod, required cross-node anti-affinity, <code>hostNetwork: false</code>, <code>privileged: false</code>.</p>
+              <small id="validation-image-state">Configure an immutable RDMA tools image in SR-IOV &amp; VFs.</small>
+            </div>
+            <button class="primary" id="run-validation">Run validation</button>
+          </article>
+          <article class="card subtle">
+            <h3>Next workload profiles</h3>
+            <p>OSU MPI latency/bandwidth and OpenFOAM can be added as reviewed profiles that reuse the verified VF resource. The API intentionally does not expose arbitrary shell execution.</p>
+          </article>
+        </section>
+
+        <section class="page" data-page-panel="jobs">
+          <div class="section-intro"><p class="eyebrow">Audit-friendly activity</p><h2>Operations and results</h2><p>Long-running work is queued in durable local state so browser refreshes do not duplicate node-changing actions.</p></div>
+          <div id="jobs-list" class="jobs"></div>
+        </section>
+
+        <section class="page" data-page-panel="security">
+          <div class="section-intro"><p class="eyebrow">Trust boundaries</p><h2>Security and access</h2></div>
+          <div class="grid two">
+            <article class="card"><h3>Operator access</h3><ul class="plain"><li>Private VM with no public IP</li><li>OCI Bastion for UI forwarding and break-glass SSH</li><li>Instance principal instead of a user OCI API key</li><li>Source-restricted NSG and host-firewall rule for the private UI</li><li>Deployment-specific workspace token for the private UI</li></ul></article>
+            <article class="card"><h3>RDMA operations</h3><ul class="plain"><li>SR-IOV/VF path only</li><li>PF/MTU discovered from live node state</li><li>Node and Cloud Agent status queried read-only through APIs</li><li>Typed approval before VF/node reconfiguration</li><li>No privileged or host-network validation pods</li><li>Immutable validation image required for live RDMA test</li></ul></article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="confirm-dialog">
+    <form method="dialog" id="confirm-form">
+      <h2 id="confirm-title">Approve change</h2>
+      <p id="confirm-copy"></p>
+      <label>Type the exact environment name<input id="confirm-input" autocomplete="off"></label>
+      <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" id="confirm-submit" class="danger">Approve</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

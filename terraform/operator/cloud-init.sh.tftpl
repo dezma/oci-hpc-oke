@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# cloud-init and sudo may provide a restricted PATH. Keep all bootstrap tools
+# resolvable explicitly and avoid depending on an interactive shell profile.
+export PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$${PATH:-}"
+hash -r
+
+exec > >(tee -a /var/log/oke-rdma-control-bootstrap.log | logger -t oke-rdma-control -s 2>/dev/console) 2>&1
+
+STATUS_DIR=/var/lib/oke-rdma-control
+CURRENT_STAGE=bootstrap
+APP_DIR=/opt/oke-rdma-control
+BOOTSTRAP_DIR=/opt/oke-rdma-bootstrap
+ETC_DIR=/etc/oke-rdma-control
+KUBE_DIR=/etc/oke-rdma-control/kube
+PAYLOAD=/tmp/oke-rdma-control.tar.gz
+OCI_BOOTSTRAP_BIN="$BOOTSTRAP_DIR/venv/bin/oci"
+
+mkdir -p "$STATUS_DIR" "$APP_DIR" "$BOOTSTRAP_DIR" "$ETC_DIR" "$KUBE_DIR"
+chmod 0750 "$ETC_DIR" "$KUBE_DIR"
+
+write_status() {
+  stage="$1"
+  CURRENT_STAGE="$stage"
+  state="$2"
+  message="$3"
+  python3 - "$stage" "$state" "$message" > "$STATUS_DIR/bootstrap-status.json" <<'PY'
+import datetime
+import json
+import sys
+
+print(json.dumps({
+  "stage": sys.argv[1],
+  "state": sys.argv[2],
+  "message": sys.argv[3],
+  "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}, indent=2))
+PY
+}
+
+on_exit() {
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    write_status "$CURRENT_STAGE" "failed" "Bootstrap failed; inspect /var/log/oke-rdma-control-bootstrap.log"
+  fi
+}
+trap on_exit EXIT
+
+write_status "packages" "running" "Installing pinned bootstrap tools"
+dnf -y install python3.11 python3.11-pip jq curl tar gzip ca-certificates firewalld
+systemctl enable --now firewalld
+
+# Install the bootstrap OCI CLI into a dedicated virtual environment and always
+# call it by absolute path. This avoids cloud-init PATH ambiguity and keeps the
+# bootstrap dependency separate from the application runtime.
+python3.11 -m venv "$BOOTSTRAP_DIR/venv"
+"$BOOTSTRAP_DIR/venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip
+"$BOOTSTRAP_DIR/venv/bin/pip" install --disable-pip-version-check --no-cache-dir 'oci-cli==3.95.0'
+"$OCI_BOOTSTRAP_BIN" --version
+
+# Install kubectl matching the selected full OKE patch. Retry transient NAT/DNS
+# failures but keep the download bounded.
+for attempt in $(seq 1 10); do
+  if curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/${kubernetes_version}/bin/linux/amd64/kubectl"; then
+    break
+  fi
+  if [ "$attempt" -eq 10 ]; then
+    write_status "packages" "failed" "Unable to download kubectl ${kubernetes_version}"
+    exit 1
+  fi
+  sleep 15
+done
+chmod 0755 /usr/local/bin/kubectl
+/usr/local/bin/kubectl version --client=true
+
+# The OCI NSG already restricts this path. Mirror the same least-privilege rule
+# in the host firewall so Bastion port forwarding can reach the private UI.
+BASTION_PRIVATE_IP='${bastion_private_endpoint_ip}'
+UI_RICH_RULE="rule family=ipv4 source address=$${BASTION_PRIVATE_IP}/32 port port=8000 protocol=tcp accept"
+if ! firewall-cmd --zone=public --query-rich-rule="$UI_RICH_RULE" >/dev/null 2>&1; then
+  firewall-cmd --zone=public --permanent --add-rich-rule="$UI_RICH_RULE"
+  firewall-cmd --reload
+fi
+
+cat > "$ETC_DIR/config.json" <<'JSON'
+{
+  "environment_name": "${environment_name}",
+  "region": "${region}",
+  "tenancy_id": "${tenancy_id}",
+  "compartment_id": "${compartment_id}",
+  "cluster_id": "${cluster_id}",
+  "cluster_name": "${cluster_name}",
+  "node_pool_id": "${node_pool_id}",
+  "compute_cluster_id": "${compute_cluster_id}",
+  "kubeconfig": "/etc/oke-rdma-control/kube/config",
+  "sriov_operator_namespace": "${sriov_operator_namespace}",
+  "nfd_addon_name": "${nfd_addon_name}",
+  "cert_manager_addon_name": "${cert_manager_addon_name}",
+  "network_operator_addon_name": "${network_operator_addon_name}",
+  "operator_kubernetes_access_mode": "${operator_kubernetes_access_mode}",
+  "kubernetes_version": "${kubernetes_version}",
+  "kubernetes_minor": "${kubernetes_minor}",
+  "ubuntu_release": "${ubuntu_release}",
+  "oke_node_package": "${oke_node_package}",
+  "oke_repo_url": "${oke_repo_url}",
+  "worker_ssh_enabled": ${worker_ssh_enabled},
+  "mode": "live"
+}
+JSON
+chmod 0640 "$ETC_DIR/config.json"
+printf '%s' '${admin_token}' > "$ETC_DIR/admin.token"
+chmod 0640 "$ETC_DIR/admin.token"
+
+write_status "identity" "waiting" "Waiting for the operator instance-principal policy to become effective"
+export OCI_CLI_AUTH=instance_principal
+export OCI_CLI_REGION='${region}'
+
+# The dynamic group depends on this instance ID, so Terraform creates IAM after
+# the VM. Retry a bounded one-hour window and retain the exact CLI error.
+IDENTITY_MAX_ATTEMPTS=120
+IDENTITY_RETRY_SECONDS=30
+for attempt in $(seq 1 "$IDENTITY_MAX_ATTEMPTS"); do
+  rm -f "$PAYLOAD"
+  if "$OCI_BOOTSTRAP_BIN" os object get \
+      --auth instance_principal \
+      --namespace '${object_namespace}' \
+      --bucket-name '${artifact_bucket}' \
+      --name '${artifact_object}' \
+      --file "$PAYLOAD" >/tmp/oke-rdma-object-get.log 2>&1; then
+    break
+  fi
+  if [ "$attempt" -eq "$IDENTITY_MAX_ATTEMPTS" ]; then
+    cat /tmp/oke-rdma-object-get.log >&2 || true
+    write_status "identity" "failed" "Instance-principal/Object Storage access did not become available; inspect /tmp/oke-rdma-object-get.log"
+    exit 1
+  fi
+  sleep "$IDENTITY_RETRY_SECONDS"
+done
+
+actual_sha=$(sha256sum "$PAYLOAD" | awk '{print $1}')
+if [ "$actual_sha" != '${artifact_sha256}' ]; then
+  write_status "application" "failed" "Operator payload checksum mismatch"
+  exit 1
+fi
+
+write_status "application" "running" "Installing the immutable control-center payload"
+rm -rf "$APP_DIR"/*
+tar -xzf "$PAYLOAD" -C "$APP_DIR"
+python3.11 -m venv "$APP_DIR/venv"
+"$APP_DIR/venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip
+if compgen -G "$APP_DIR/wheelhouse/*.whl" >/dev/null; then
+  "$APP_DIR/venv/bin/pip" install --no-index --find-links "$APP_DIR/wheelhouse" -r "$APP_DIR/requirements.lock"
+else
+  echo "WARNING: development payload has no vendored wheelhouse; using NAT to install pinned requirements."
+  "$APP_DIR/venv/bin/pip" install -r "$APP_DIR/requirements.lock"
+fi
+"$APP_DIR/venv/bin/oci" --version
+
+write_status "kubeconfig" "running" "Generating a private-endpoint kubeconfig with instance-principal auth context"
+PATH="$APP_DIR/venv/bin:/usr/local/bin:/usr/bin:$PATH" \
+"$APP_DIR/venv/bin/oci" ce cluster create-kubeconfig \
+  --auth instance_principal \
+  --with-auth-context \
+  --cluster-id '${cluster_id}' \
+  --file "$KUBE_DIR/config" \
+  --region '${region}' \
+  --token-version 2.0.0 \
+  --kube-endpoint PRIVATE_ENDPOINT \
+  --overwrite
+chmod 0640 "$KUBE_DIR/config"
+
+cat > /etc/profile.d/oke-rdma-control.sh <<'PROFILE'
+export KUBECONFIG=/etc/oke-rdma-control/kube/config
+export PATH=/opt/oke-rdma-control/venv/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH
+PROFILE
+chmod 0644 /etc/profile.d/oke-rdma-control.sh
+
+cat > /usr/local/bin/oke-rdma-doctor <<'DOCTOR'
+#!/usr/bin/env bash
+set -u
+export KUBECONFIG=/etc/oke-rdma-control/kube/config
+printf '%s\n' '=== bootstrap ==='
+sudo cat /var/lib/oke-rdma-control/bootstrap-status.json 2>/dev/null || true
+printf '%s\n' '=== services ==='
+sudo systemctl --no-pager --full status oke-rdma-control-api.service oke-rdma-control-worker.service || true
+printf '%s\n' '=== listener ==='
+sudo ss -ltnp | grep ':8000' || true
+printf '%s\n' '=== health ==='
+curl -sS -i http://127.0.0.1:8000/health/ready || true
+printf '%s\n' '=== nodes ==='
+kubectl get nodes -l oci-rdma=true -o wide || true
+DOCTOR
+chmod 0755 /usr/local/bin/oke-rdma-doctor
+
+mkdir -p /etc/motd.d
+cat > /etc/motd.d/oke-rdma-control <<'MOTD'
+OKE RDMA Control Center
+  UI health:  curl http://127.0.0.1:8000/health/ready
+  UI token:   sudo cat /etc/oke-rdma-control/admin.token
+  kubeconfig: export KUBECONFIG=/etc/oke-rdma-control/kube/config
+  diagnostics: oke-rdma-doctor
+MOTD
+chmod 0644 /etc/motd.d/oke-rdma-control
+
+cat > /etc/systemd/system/oke-rdma-control-api.service <<'UNIT'
+[Unit]
+Description=OKE RDMA Control Center API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opc
+Group=opc
+WorkingDirectory=/opt/oke-rdma-control
+Environment=HPC_CONTROL_CONFIG=/etc/oke-rdma-control/config.json
+Environment=HPC_CONTROL_TOKEN_FILE=/etc/oke-rdma-control/admin.token
+Environment=HPC_CONTROL_DB=/var/lib/oke-rdma-control/control.db
+Environment=HPC_CONTROL_RDMA_CONFIG=/var/lib/oke-rdma-control/rdma-config.json
+Environment=KUBECONFIG=/etc/oke-rdma-control/kube/config
+Environment=OCI_CLI_AUTH=instance_principal
+Environment=PATH=/opt/oke-rdma-control/venv/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+ExecStart=/opt/oke-rdma-control/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/oke-rdma-control
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/systemd/system/oke-rdma-control-worker.service <<'UNIT'
+[Unit]
+Description=OKE RDMA Control Center durable job worker
+After=network-online.target oke-rdma-control-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opc
+Group=opc
+WorkingDirectory=/opt/oke-rdma-control
+Environment=HPC_CONTROL_CONFIG=/etc/oke-rdma-control/config.json
+Environment=HPC_CONTROL_TOKEN_FILE=/etc/oke-rdma-control/admin.token
+Environment=HPC_CONTROL_DB=/var/lib/oke-rdma-control/control.db
+Environment=HPC_CONTROL_RDMA_CONFIG=/var/lib/oke-rdma-control/rdma-config.json
+Environment=KUBECONFIG=/etc/oke-rdma-control/kube/config
+Environment=OCI_CLI_AUTH=instance_principal
+Environment=PATH=/opt/oke-rdma-control/venv/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+ExecStart=/opt/oke-rdma-control/venv/bin/python -m app.worker
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/oke-rdma-control
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+chown -R opc:opc "$APP_DIR" "$STATUS_DIR"
+chown root:opc "$ETC_DIR" "$KUBE_DIR"
+chown root:opc "$ETC_DIR/config.json" "$ETC_DIR/admin.token" "$KUBE_DIR/config"
+chmod 0750 "$ETC_DIR" "$KUBE_DIR" "$APP_DIR" "$STATUS_DIR"
+chmod 0640 "$ETC_DIR/admin.token" "$ETC_DIR/config.json" "$KUBE_DIR/config"
+
+systemctl daemon-reload
+systemctl enable --now oke-rdma-control-api.service oke-rdma-control-worker.service
+
+for attempt in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8000/health/ready >/dev/null 2>&1; then
+    write_status "complete" "ready" "Control Center is listening privately on port 8000"
+    exit 0
+  fi
+  sleep 4
+done
+
+systemctl --no-pager --full status oke-rdma-control-api.service || true
+write_status "services" "failed" "Control Center services did not become ready"
+exit 1

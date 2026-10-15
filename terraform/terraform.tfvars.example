@@ -1,11 +1,29 @@
-home_region = "" # https://docs.oracle.com/en-us/iaas/Content/General/Concepts/regions.htm
+tenancy_ocid        = "ocid1.tenancy.oc1..example"
+compartment_ocid    = "ocid1.compartment.oc1..example"
+region              = "eu-frankfurt-1"
+availability_domain = "AbCd:EU-FRANKFURT-1-AD-1"
+name_prefix         = "oke-rdma"
 
-region    =  ""
+# The quickstart derives the Kubernetes minor, Ubuntu OKE repository and compatible
+# Oracle Ubuntu node package from this full OKE patch plus ubuntu_release.
+kubernetes_version = "v1.36.4"
+ubuntu_release      = "ubuntu-noble"
 
-tenancy_id = "ocid1.tenancy.oc1.."
+# Paste the OCID of the approved Ubuntu HPC custom image. Resource Manager intentionally
+# uses a plain string field so the image does not have to appear in the platform-image picker.
+hpc_custom_image_ocid = "ocid1.image.oc1.eu-frankfurt-1.example"
+node_shape             = "BM.Optimized3.36"
+node_count             = 2
 
-compartment_id = "ocid1.compartment.oc1.."
+# Restrict this to the workstation or corporate VPN that creates Bastion sessions.
+bastion_client_cidr = "203.0.113.10/32"
 
-# ssh
-ssh_private_key_path = "~/.ssh/id_rsa"
-ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2EAAA...."
+# PF, MTU, VF count, Kubernetes resource name, NVIDIA IPAM pool and the immutable
+# RDMA validation image are discovered/configured after deployment in the Control Center.
+
+nvidia_network_operator_version = "25.10.0-1"
+
+# Optional break-glass access from the private operator VM to workers.
+# Normal Control Center node diagnostics use Kubernetes and OCI APIs and do not need SSH.
+enable_worker_ssh_from_operator = false
+worker_ssh_public_key            = ""

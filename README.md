@@ -1,172 +1,403 @@
-# Deploying a HPC Cluster with RDMA Network on OCI OKE 
+# OCI OKE RDMA Quickstart
 
-## Assumptions
+A Resource Manager-first quickstart for operating **CPU RDMA workloads on OCI Kubernetes Engine (OKE)**.
 
-1. The terraform script will be run on  OCI Cloud Shell.
-2. The OKE clusters will use private control planes.
+The stack provisions a private enhanced OKE cluster, an OCI Compute Cluster, managed bare-metal CPU RDMA workers, the native OKE Node Feature Discovery and NVIDIA Network Operator add-ons, OCI Bastion, and a private operator VM. The operator VM automatically installs and starts the **OKE RDMA Control Center**.
 
+The supported pod networking model is intentionally narrow:
 
-![OKE RDMA](Architecture/oci-hpc-arc.png)
-
-
-## Create the OKE Clusters
-
-1. Copy the terraform.tfvars.example to terraform.tfvars and provide the necessary values as detailed in steps 2-7.
-
+```text
+OCI Compute Cluster
+        |
+        v
+OKE managed CPU RDMA nodes
+        |
+        v
+NVIDIA Network Operator + SR-IOV Network Operator
+        |
+        v
+RDMA-capable SR-IOV VFs
+        |
+        v
+unprivileged pods with hostNetwork=false
 ```
 
-cp terraform.tfvars.example terraform.tfvars
+MacVLAN, IPvlan and generic host-device alternatives are not included. `SriovNetwork`, NVIDIA IPAM and the generated network attachment are treated as required SR-IOV/VF plumbing.
 
+## What v1.2.0 improves
+
+This release incorporates the operational lessons from a real first deployment:
+
+- installs the OCI CLI in a dedicated bootstrap virtual environment and calls it by absolute path;
+- sets an explicit cloud-init/systemd `PATH`;
+- uses valid `oci os object get` syntax and reports bootstrap failures accurately;
+- waits a bounded one-hour window for exact-instance dynamic-group/IAM convergence;
+- installs Certificate Manager before NVIDIA Network Operator;
+- resolves exact live OKE add-on version spellings, including leading `v` prefixes;
+- configures the operator host firewall to allow TCP/8000 only from the Bastion private endpoint;
+- creates shell helpers for the UI token, kubeconfig and health diagnostics;
+- provides a **Managed nodes** page that queries Kubernetes, OCI Compute, OCI Instance Agent plugin state, and `SriovNetworkNodeState` without requiring SSH;
+- blocks VF creation when nodes disagree on MTU, required OCI RDMA plugins are unhealthy, or the detected PF resembles a VCN/control-plane NIC rather than the RDMA fabric;
+- optionally provisions a break-glass worker SSH key and the narrowly scoped operator-to-worker TCP/22 NSG rule; this is disabled by default;
+- keeps the browser/API command boundary allowlisted—there is no arbitrary shell or manifest endpoint.
+
+## Architecture and ownership boundary
+
+```text
+OCI Resource Manager
+        |
+        +-- VCN / private subnets / NSGs
+        +-- enhanced OKE
+        +-- OCI Compute Cluster
+        +-- managed CPU RDMA node pool
+        +-- NFD, Certificate Manager, NVIDIA Network Operator
+        +-- private operator VM + OCI Bastion
+        +-- IAM and immutable operator payload
+                  |
+                  v
+          OKE RDMA Control Center
+                  |
+                  +-- query managed-node health
+                  +-- discover/validate the RDMA PF and MTU
+                  +-- configure SriovNetworkNodePolicy
+                  +-- wait for VF reconciliation
+                  +-- configure NVIDIA IPAM + SriovNetwork
+                  +-- run finite cross-node ib_write_bw
 ```
 
-2. Configure the provider parameters:
+| Resource Manager owns | Control Center owns |
+| --- | --- |
+| compartment, region, AD | live node and Oracle Cloud Agent diagnostics |
+| VCN, private subnets and NSGs | PF/MTU discovery and selection |
+| enhanced OKE | VF count and resource name |
+| Compute Cluster | `SriovNetworkNodePolicy` |
+| managed CPU RDMA node pool | VF reconciliation monitoring |
+| Ubuntu HPC custom image | NVIDIA IPAM pool and `SriovNetwork` |
+| OKE add-ons | cross-node RDMA validation |
+| operator VM, Bastion and IAM | activity history and downloadable diagnostics |
 
+A successful Terraform Apply means **infrastructure ready**. It does not mean RDMA traffic has been verified.
+
+## Ubuntu OKE bootstrap values are derived
+
+The Resource Manager form asks for:
+
+- full OKE Kubernetes patch, for example `v1.36.4`;
+- Ubuntu release: `ubuntu-noble` or `ubuntu-jammy`;
+- the approved Ubuntu HPC custom-image OCID.
+
+Terraform derives:
+
+```text
+Kubernetes minor
+Ubuntu OKE repository URL
+compatible oci-oke-node-all-* package
 ```
 
-# provider
+from an explicit compatibility map. The custom HPC image is a pasteable OCID field—not a platform-image selector—and Terraform validates image/shape/AD launch compatibility. That validation cannot prove OFED or RDMA-driver readiness.
 
-home_region = "eu-frankfurt-1"
+Oracle compatibility matrix:
 
-region = "eu-frankfurt"
+https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengCompatibilitymatrix_topic.htm
 
-tenancy_id = "ocid1.tenancy.oc1.."
+Ubuntu managed-node bootstrap guidance:
 
-compartment_id = "ocid1.compartment.oc1.."
+https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengcreatingubuntubasedworkernodes.htm
 
+## Build the Resource Manager package
 
+A production build vendors the pinned Python wheels used by the private operator:
+
+```bash
+./provisioning/build-orm.sh
 ```
 
-3. Configure an ssh key pair:
+Output:
+
+```text
+dist/oci-oke-rdma-quickstart-orm.zip
 ```
 
-ssh-keygen -b 2048 -t rsa -f <<sshkeyname>>
+For development only, where the operator VM may install pinned dependencies over its NAT path:
 
-```
-Add the keys to the terraform.tfvars file
-
-```
-
-# ssh
-ssh_private_key_path = "~/.ssh/id_rsa"
-ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2E....."
-
+```bash
+OKE_RDMA_SKIP_VENDOR=1 ./provisioning/build-orm.sh
 ```
 
+Output:
 
-5. Configure variable.ft parameters.<br>
-<strong> N/B</strong>:
-<ul>
-<li>Cluster type must set be "enhanced" and network type to "flannel" for RDMA to work.</li>
-<li>Check OCI documentation for supported HPC shapes <a href="https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm#bm-hpc-optimized">here</a> </li>
-<li>The HPC pool requires you to use an image provided by the Oracle HPC team, you can find the import <a href="https://objectstorage.us-ashburn-1.oraclecloud.com/p/f6mKO0d_OG7gL4EyE5rvOWObL6LBgQ1XXtpM2H67SYmFHQ-tBwxyg7Wmii94VYc8/n/hpc_limited_availability/b/images/o/OracleLinux-8-OCA-RHCK-OFED-5.8-3.0.7.0-GPU-535-OKE-2024.02.12-0">Link</a>. This image includes the OFED drivers and necessary packages configured for RDMA. Import this image to Object storage and create a custom image from it.  </li> Check <a href ="https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/importingcustomimagelinux.htm#Importing_Custom_Linux_Images">link</a> on how to import custom images on OCI
-
-
-</ul>
-
+```text
+dist/oci-oke-rdma-quickstart-orm-dev.zip
 ```
 
- variable hpc_image { default = "" } #ocid of the custom image
- variable hpc_shape { default = "" }
- variable kubernetes_version { default = "v1.29.1" }
- variable cluster_type { default = "enhanced" }
- variable cluster_name { default = "oke-rdma-cluster" }
- variable cni_type {default = "flannel"}
+Do not publish the development package as a production release artifact.
 
+## Provision through Resource Manager
+
+Upload the release ZIP to OCI Resource Manager and review the Plan before Apply.
+
+Primary inputs:
+
+```text
+compartment / region / availability domain
+OKE patch version
+Ubuntu release
+Ubuntu HPC custom-image OCID
+CPU RDMA shape and node count
+Bastion client CIDR
 ```
 
-6. Configure your bastion and operator shapes on main.tf file:
+Optional break-glass access:
 
+```text
+Enable worker SSH from operator: false by default
+Worker SSH public key: required only when enabled
 ```
 
-bastion_shape = {
-  shape            = "VM.Standard.E4.Flex",
-  ocpus            = 1,
-  memory           = 4,
-  boot_volume_size = 50
-  }
+The private key remains on the administrator workstation. Normal Control Center operation does not require worker SSH.
 
-operator_shape = {
-  shape            = "VM.Standard.E4.Flex",
-  ocpus            = 1,
-  memory           = 4,
-  boot_volume_size = 50
-  }
+### Add-on order
 
+The stack installs add-ons in this order:
+
+```text
+managed RDMA nodes
+        ↓
+Node Feature Discovery
+        ↓
+Certificate Manager
+        ↓
+NVIDIA Network Operator
+        ↓
+SR-IOV Network Operator components
 ```
 
-7. Run terraform to create your clusters:
+NVIDIA Network Operator receives the exact live version string returned by OKE. The Resource Manager form uses the user-friendly prefix-free spelling.
 
+## Open the private Control Center
+
+After Apply:
+
+1. Run `operator_ui_bastion_session_create_command` using a public key whose private key is on your workstation.
+2. Copy the SSH command returned by OCI Bastion.
+3. Run the tunnel **on your workstation**, mapping local port `18000` to the operator target port `8000`.
+4. Open:
+
+```text
+http://127.0.0.1:18000
 ```
 
-terraform init
+5. Connect to the operator with the generated managed-SSH session and retrieve the token:
 
-terraform plan -var-file="terraform.tfvars"
-
-terraform apply -var-file="terraform.tfvars"
-
+```bash
+sudo cat /etc/oke-rdma-control/admin.token
 ```
 
+The UI port is protected twice:
 
-
-## Mount OCI FSS as Persistent Volume
-
-1. The template will deploy a bastion instance and an operator instance. The operator instance will have access to the OKE cluster. You can connect to the operator instance via SSH with
-
+```text
+operator NSG: Bastion private endpoint /32 -> TCP/8000
+operator firewalld: same Bastion private endpoint /32 -> TCP/8000
 ```
 
-ssh -o ProxyCommand='ssh -W %h:%p -i <path-to-private-key> opc@<bastion_public_ip>' -i <path-to-private-key> opc@<operator_ip>
+Do not expose TCP/8000 directly to the internet.
+
+### Operator shell helpers
+
+New operator shells receive:
+
+```bash
+export KUBECONFIG=/etc/oke-rdma-control/kube/config
 ```
 
-2. Verify you can see all nodes in the cluster:
+Useful commands:
 
+```bash
+oke-rdma-doctor
+sudo cat /var/lib/oke-rdma-control/bootstrap-status.json
+sudo cat /etc/oke-rdma-control/admin.token
+curl http://127.0.0.1:8000/health/ready
+kubectl get nodes -l oci-rdma=true -o wide
 ```
 
-kubectl get nodes
+## Use the Control Center
+
+### 1. Query managed nodes
+
+Open **Managed nodes** and select **Query nodes**.
+
+The API performs read-only queries and correlates:
+
+- Kubernetes Ready state, InternalIP, OS/kernel and kubelet version;
+- OCI instance OCID, shape and lifecycle state;
+- OCI Instance Agent runtime state for:
+  - `Compute HPC RDMA Authentication`;
+  - `Compute HPC RDMA Auto-Configuration`;
+- `SriovNetworkNodeState` sync state and interface inventory;
+- allocatable `nvidia.com/<resource>` capacity.
+
+The UI provides a downloadable JSON report and a fully qualified `kubectl debug` command for break-glass inspection. The web service never executes that privileged host command.
+
+### 2. Discover the RDMA PF
+
+Open **SR-IOV & VFs** and select **Discover hardware**.
+
+The discovery logic is deliberately conservative because a BM node can expose several MLX5 PFs, including a VCN/control-plane PF. A normal UI candidate must:
+
+- exist on every selected RDMA worker;
+- be Mellanox/MLX5-backed;
+- report one consistent MTU across workers;
+- use the OCI CPU-RDMA fabric MTU range (normally `4220`, not `1500` or `9000`);
+- have the highest common VF capability among the MLX5 PFs;
+- not report a down/disabled administrative state when the CRD exposes it.
+
+A `1500/4220` mismatch is treated as a node-health problem. The UI will not recommend another MLX5 port merely because it is present.
+
+### 3. Save RDMA settings
+
+Select and save:
+
+```text
+healthy RDMA PF
+live MTU
+VFs per node
+nvidia.com/<resource-name>
+NVIDIA IPAM IPv4 pool
+immutable RDMA tools image digest (can be added later)
 ```
 
-3. Copy the the hpc-fss-pv.yaml located in the OKE FSS PV folder and edit the following line:
+Saving settings does not modify Kubernetes or the workers.
 
-<em>volumeHandle : FileSystemOCID:MountTargetIP:path</em></br>
-where:
-<ul>
- <li><b>FileSystemOCID</b> is the OCID of the file system defined in the File Storage service.</li>
- <li><b>MountTargetIP</b> is the IP address assigned to the mount target.</li>
- <li><b>path</b> is the mount path to the file system relative to the mount target IP address, starting with a slash.</li>
+### 4. Apply the VF policy
 
-</ul>
+The action requires typing the exact environment name. Immediately before Apply, the backend re-queries node/plugin health and live PF capability, then performs a Kubernetes server-side dry-run.
 
-4. Create a persistent volume
+The action is blocked when:
 
+- a node is not Ready;
+- a required OCI RDMA plugin is not `RUNNING`;
+- no healthy common RDMA PF exists;
+- MTUs disagree;
+- the requested VF count exceeds the live minimum capability.
+
+### 5. Wait for reconciliation
+
+The workflow advances only after every selected node reports:
+
+```text
+SriovNetworkNodeState.status.syncStatus = Succeeded
 ```
 
- kubectl create -f hpc-fss-pv.yaml
- kubectl get pv
+and advertises the expected:
 
+```text
+nvidia.com/<resource-name>
 ```
 
-5. Copy and Edit the hpc-fss-pvc.yaml from OKE FSS PV folder and edit the line:
-<em>volumeName: hpc-fss-pv</em> to have the correct name of the Persistent volume 
+capacity.
 
+### 6. Create the VF network
+
+The Control Center creates the workload namespace, NVIDIA IPAM `IPPool` and `SriovNetwork`, then waits for the generated `NetworkAttachmentDefinition`.
+
+### 7. Validate RDMA
+
+Configure a scanned, immutable image reference:
+
+```text
+fra.ocir.io/<namespace>/rdma-tools@sha256:<digest>
 ```
 
-volumeName: <name of Persistent volume>
+The finite two-pod profile verifies:
+
+- different worker-node placement;
+- one VF allocated to each pod;
+- `hostNetwork: false` and `privileged: false`;
+- route and neighbor state over `net1`;
+- the actual VF-backed RDMA device and RoCE-v2 GID;
+- a finite `ib_write_bw` server/client run.
+
+ICMP failure alone is not treated as proof of RDMA failure.
+
+## Node-health failure example
+
+If one worker reports:
+
+```text
+Compute HPC RDMA plugins: RUNNING
+RDMA PF on one node: MTU 4220
+same PF on another: MTU 1500
 ```
 
-6. Create the peristent volume claim and make sure its bound:
+then do not configure VFs. Use **Managed nodes** to export diagnostics, and use the displayed break-glass command only if host inspection is required. A per-interface authentication or fabric failure can leave the plugin process running while the RDMA link remains down. In that case, recycle only the unhealthy managed node rather than forcing MTU/VF configuration from the application.
 
+See `docs/NODE_DIAGNOSTICS.md`.
+
+## Security model
+
+See `SECURITY.md` and `docs/THREAT_MODEL.md`.
+
+Core boundary:
+
+```text
+administrator workstation
+      |
+      | time-limited OCI Bastion session
+      v
+private operator VM
+      |
+      | instance principal + private OKE endpoint
+      v
+OKE control plane
+      |
+      | reviewed SR-IOV/VF resources
+      v
+non-host-network, non-privileged RDMA workload pods
 ```
 
- kubectl create -f hpc-fss-pvc.yaml
+No OCI user API key, private key or kubeconfig is accepted in the browser.
 
- kubectl get pvc
+## Validation
+
+Run:
+
+```bash
+./provisioning/validate.sh
 ```
 
-7. #<b>Optional</b> </br>
+The local checks cover Python/API behavior, UI JavaScript syntax, shell syntax, YAML parsing and project-contract controls. Terraform provider validation also runs when Terraform has been initialized.
 
-Clean up all resources if need be
+Live OCI creation, shape capacity, custom Ubuntu HPC image readiness, add-on reconciliation and actual RDMA traffic must still be validated in the target tenancy.
 
+## Repository layout
+
+```text
+oci-oke-rdma-quickstart/
+├── control/
+│   ├── app/                  FastAPI API and durable worker
+│   ├── validation/           finite cross-node RDMA verifier
+│   └── web/                  responsive Control Center
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── NODE_DIAGNOSTICS.md
+│   ├── RDMA_WORKFLOW.md
+│   ├── REPROVISION_CHECKLIST.md
+│   ├── SECURITY / threat and production guidance
+│   └── SOURCES.md
+├── provisioning/
+├── terraform/
+│   ├── operator/             managed-node and operator bootstrap templates
+│   └── schema.yaml           Resource Manager UX
+├── tests/
+└── workloads/rdma-tools/
 ```
 
- terraform destroy -var-file="terraform.tfvars"
-```
+## Current limitations
 
+- no public UI or enterprise SSO/RBAC;
+- no automatic boot-volume replacement;
+- no arbitrary host-shell execution from the UI;
+- no automatic VF-policy deletion/migration;
+- no automatic managed-node replacement;
+- no fabricated capacity, cost or performance claims;
+- release builds require a trusted environment with package-repository access to vendor Python wheels.

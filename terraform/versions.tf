@@ -1,11 +1,14 @@
 terraform {
+  required_version = ">= 1.5.7, < 1.6.0"
+
   required_providers {
     oci = {
-      configuration_aliases = [oci.home]
-      source                = "oracle/oci"
-      version               = ">= 5.4.0"
+      source  = "oracle/oci"
+      version = "~> 9.9.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.6.0, < 4.0.0"
     }
   }
-
-  required_version = ">= 1.2.0"
 }

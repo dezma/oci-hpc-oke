@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oke-rdma-control-center
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "namespaces", "pods", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  - apiGroups: ["sriovnetwork.openshift.io"]
+    resources: ["sriovnetworknodepolicies", "sriovnetworknodestates", "sriovnetworks"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+  - apiGroups: ["nv-ipam.nvidia.com"]
+    resources: ["ippools"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+  - apiGroups: ["k8s.cni.cncf.io"]
+    resources: ["network-attachment-definitions"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oke-rdma-control-center
+subjects:
+  - kind: Group
+    name: ${operator_dynamic_group_ocid}
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oke-rdma-control-center
