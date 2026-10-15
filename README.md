@@ -24,22 +24,8 @@ unprivileged pods with hostNetwork=false
 
 MacVLAN, IPvlan and generic host-device alternatives are not included. `SriovNetwork`, NVIDIA IPAM and the generated network attachment are treated as required SR-IOV/VF plumbing.
 
-## What v1.2.0 improves
+![OKE RDMA](Architecture/oci-hpc-arc.png)
 
-This release incorporates the operational lessons from a real first deployment:
-
-- installs the OCI CLI in a dedicated bootstrap virtual environment and calls it by absolute path;
-- sets an explicit cloud-init/systemd `PATH`;
-- uses valid `oci os object get` syntax and reports bootstrap failures accurately;
-- waits a bounded one-hour window for exact-instance dynamic-group/IAM convergence;
-- installs Certificate Manager before NVIDIA Network Operator;
-- resolves exact live OKE add-on version spellings, including leading `v` prefixes;
-- configures the operator host firewall to allow TCP/8000 only from the Bastion private endpoint;
-- creates shell helpers for the UI token, kubeconfig and health diagnostics;
-- provides a **Managed nodes** page that queries Kubernetes, OCI Compute, OCI Instance Agent plugin state, and `SriovNetworkNodeState` without requiring SSH;
-- blocks VF creation when nodes disagree on MTU, required OCI RDMA plugins are unhealthy, or the detected PF resembles a VCN/control-plane NIC rather than the RDMA fabric;
-- optionally provisions a break-glass worker SSH key and the narrowly scoped operator-to-worker TCP/22 NSG rule; this is disabled by default;
-- keeps the browser/API command boundary allowlisted—there is no arbitrary shell or manifest endpoint.
 
 ## Architecture and ownership boundary
 
